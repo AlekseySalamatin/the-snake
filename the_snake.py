@@ -47,19 +47,17 @@ class GameObject:
 
     def __init__(
         self,
-        position=[(SCREEN_CENTER_X, SCREEN_CENTER_Y)],
+        position=(SCREEN_CENTER_X, SCREEN_CENTER_Y),
         body_color=BOARD_BACKGROUND_COLOR
     ):
-        # Для любого объекта класса или дочерних классов 
+        # Для любого объекта класса или дочерних классов
         # position - это список кортежей
         self.position = position
         self.body_color = body_color
 
     def draw(self, surface):
-        """Отрисовка любого обЪекта"""
-        for pos in self.position:
-            rect = pygame.Rect(pos[0], pos[1], GRID_SIZE, GRID_SIZE)
-            pygame.draw.rect(surface, self.body_color, rect)
+        """Абстракция для наследования"""
+        pass
 
 
 class Apple(GameObject):
@@ -73,32 +71,28 @@ class Apple(GameObject):
         """Случайная позиция яблока"""
         x = randint(0, (SCREEN_WIDTH // GRID_SIZE) - 1) * GRID_SIZE
         y = randint(0, (SCREEN_HEIGHT // GRID_SIZE) - 1) * GRID_SIZE
-        self.position[0] = (x, y)
+        self.position = (x, y)
+
+    def draw(self, surface):
+        """Отрисовка яблока"""
+        rect = pygame.Rect(self.position[0], self.position[1],
+                           GRID_SIZE, GRID_SIZE)
+        pygame.draw.rect(surface, self.body_color, rect)
 
 
 class Snake(GameObject):
     """Класс змейки."""
 
     def __init__(self):
-        super().__init__(
-            position=[(SCREEN_CENTER_X, SCREEN_CENTER_Y)],
-            body_color=SNAKE_COLOR
-        )
-        # Я определил метод draw в родительском классе таким образом,
-        # Чтобы для любого обЪекта метод обращался к параметру position.
-        # Это позволило избежать объявление метода draw для каждого
-        # дочернего класса. В прекоде эти методы были очень похожи.
-        # Pytest требует, чтобы класс змейки содержал аттрибут 
-        # positions, в моей логике он не нужен. Следующая строка нужна 
-        # только для того, чтобы пройти тест.
-        self.positions = self.position
+        super().__init__(body_color=SNAKE_COLOR)
+        self.positions = [self.position]
         self.length = 1
         self.direction = (GRID_SIZE, 0)  # Движение вправо по умолчанию
         self.next_direction = None
 
     def get_head_position(self):
         """Определение положения головы змейки"""
-        return self.position[0]
+        return self.positions[0]
 
     def update_direction(self):
         """Определение следующего направления змейки"""
@@ -120,24 +114,31 @@ class Snake(GameObject):
         new_head = (new_x, new_y)
 
         # Проверка столкновения с самим собой
-        if new_head in self.position[1:]:
+        if new_head in self.positions[1:]:
             return False
 
-        # Добавляем новый нулевой элемент, удаляем последний элемент списка position,
-        # Если длина змейки меньше количества элементов списка position
-        self.position.insert(0, new_head)
-        if len(self.position) > self.length:
-            self.position.pop()
+        # Добавляем новый нулевой элемент,
+        # удаляем последний элемент списка positions,
+        # если длина змейки меньше количества элементов списка position.
+        self.positions.insert(0, new_head)
+        if len(self.positions) > self.length:
+            self.positions.pop()
         return True
 
     def reset(self):
         """Возвращение начального положения при столкновении змейки с собой"""
-        self.position = [(SCREEN_CENTER_X, SCREEN_CENTER_Y)]
+        self.positions = [(SCREEN_CENTER_X, SCREEN_CENTER_Y)]
         self.length = 1
         choice_of_direction = choice(LIST_OF_DIRECTIONS)
         # Начало движения в случайном направлении
         self.direction = (choice_of_direction[0], choice_of_direction[1])
         self.next_direction = None
+
+    def draw(self, surface):
+        """Отрисовка змейки"""
+        for position in self.positions:
+            rect = pygame.Rect(position[0], position[1], GRID_SIZE, GRID_SIZE)
+            pygame.draw.rect(surface, self.body_color, rect)
 
 
 def handle_keys(game_object):
@@ -166,17 +167,17 @@ def main():
     while True:
         handle_keys(snake)
         # Движение змейки
-        alive = snake.move()
-        if not alive:
+        no_collisions = snake.move()
+        if not no_collisions:
             snake.reset()
             apple.randomize_position()
-            while apple.position[0] in snake.position:
+            while apple.position in snake.positions:
                 apple.randomize_position()
         # Поедание яблока
-        if snake.get_head_position() == apple.position[0]:
+        if snake.get_head_position() == apple.position:
             snake.length += 1
             apple.randomize_position()
-            while apple.position[0] in snake.position:
+            while apple.position in snake.positions:
                 apple.randomize_position()
         # Отрисовка
         screen.fill(BOARD_BACKGROUND_COLOR)
