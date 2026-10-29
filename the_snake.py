@@ -84,6 +84,14 @@ class Snake(GameObject):
             position=[(SCREEN_CENTER_X, SCREEN_CENTER_Y)],
             body_color=SNAKE_COLOR
         )
+        # Я определил метод draw в родительском классе таким образом,
+        # Чтобы для любого обЪекта метод обращался к параметру position.
+        # Это позволило избежать объявление метода draw для каждого
+        # дочернего класса. В прекоде эти методы были очень похожи.
+        # Pytest требует, чтобы класс змейки содержал аттрибут 
+        # positions, в моей логике он не нужен. Следующая строка нужна 
+        # только для того, чтобы пройти тест.
+        self.positions = self.position
         self.length = 1
         self.direction = (GRID_SIZE, 0)  # Движение вправо по умолчанию
         self.next_direction = None
