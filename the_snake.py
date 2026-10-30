@@ -1,4 +1,5 @@
 import random
+
 import pygame as pg
 
 # Инициализация Pygame
