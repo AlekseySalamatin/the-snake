@@ -121,7 +121,6 @@ class Snake(GameObject):
         self.length = 1
         self.direction = choice(DIRECTIONS)
         self.last = None  # Инициализация / сброс отрезанного сегмента
-        screen.fill(BOARD_BACKGROUND_COLOR)  # Очищаем всё поле
 
     def draw(self):
         """Отрисовка только головы и затирание хвоста
@@ -159,13 +158,14 @@ def main():
     """Игровой цикл."""
     snake = Snake()
     apple = Apple(occupied_positions=snake.positions)
-
+    screen.fill(BOARD_BACKGROUND_COLOR)
     while True:
         handle_keys(snake)
         snake.move()
 
         if snake.get_head_position() in snake.positions[4:]:
             snake.reset()
+            screen.fill(BOARD_BACKGROUND_COLOR)
             apple.randomize_position(snake.positions)
 
         elif snake.get_head_position() == apple.position:
