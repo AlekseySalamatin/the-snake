@@ -51,106 +51,105 @@ class GameObject:
         self.position = position
         self.body_color = body_color
 
+    def draw_cell(self, position, color=None):
+        """Метод отрисовки одной ячейки на игровом поле."""
+        draw_color = color if color is not None else self.body_color
+        rect = pg.Rect(position[0], position[1], GRID_SIZE, GRID_SIZE)
+        pg.draw.rect(screen, draw_color, rect)
+
     def draw(self):
         """Базовый метод отрисовки (переопределяется в дочерних классах)."""
-        pass
 
 
 class Apple(GameObject):
     """Класс яблока."""
 
     def __init__(self, occupied_positions=None, body_color=APPLE_COLOR):
-        super().__init__()
-        self.body_color = body_color
+        super().__init__(body_color=body_color)
         self.randomize_position(occupied_positions or [])
 
     def randomize_position(self, occupied_positions):
         """Случайная позиция яблока, не занятая змейкой."""
         while True:
-            x = randint(0, GRID_WIDTH - 1) * GRID_SIZE
-            y = randint(0, GRID_HEIGHT - 1) * GRID_SIZE
-            self.position = (x, y)
+            self.position = (
+                randint(0, GRID_WIDTH - 1) * GRID_SIZE,
+                randint(0, GRID_HEIGHT - 1) * GRID_SIZE
+            )
             if self.position not in occupied_positions:
                 break
 
     def draw(self):
         """Отрисовка яблока."""
-        rect = pg.Rect(self.position[0], self.position[1],
-                       GRID_SIZE, GRID_SIZE)
-        pg.draw.rect(screen, self.body_color, rect)
+        self.draw_cell(self.position)
 
 
 class Snake(GameObject):
     """Класс змейки."""
 
     def __init__(self, body_color=SNAKE_COLOR):
-        super().__init__(position=CENTER)
-        self.body_color = body_color
-        self.positions = [self.position]
-        self.length = 1
-        self.direction = RIGHT
-        self.next_direction = None
+        self.positions = [CENTER]
+        self.last_tail_position = None  # Запоминаем для затирания хвоста
+        super().__init__(position=CENTER, body_color=body_color)
+        self.reset()
 
     def get_head_position(self):
         """Определение положения головы змейки."""
         return self.positions[0]
 
-    def update_direction(self):
+    def update_direction(self, new_direction):
         """Определение следующего направления змейки."""
-        if self.next_direction:
-            if OPPOSITE_DIRECTIONS.get(self.next_direction) != self.direction:
-                self.direction = self.next_direction
-            self.next_direction = None
+        if OPPOSITE_DIRECTIONS.get(new_direction) != self.direction:
+            self.direction = new_direction
 
     def move(self):
         """Логика движения змейки."""
-        self.update_direction()
         cur_x, cur_y = self.get_head_position()
         dir_x, dir_y = self.direction
-        new_x = (cur_x + dir_x) % SCREEN_WIDTH
-        new_y = (cur_y + dir_y) % SCREEN_HEIGHT
-        new_head = (new_x, new_y)
-
-        if new_head in self.positions:
-            return False
-
-        self.positions.insert(0, new_head)
+        self.positions.insert(
+            0,
+            ((cur_x + dir_x) % SCREEN_WIDTH, (cur_y + dir_y) % SCREEN_HEIGHT)
+        )
         if len(self.positions) > self.length:
-            self.positions.pop()
-        return True
+            self.last_tail_position = self.positions.pop()
+        else:
+            self.last_tail_position = None
 
     def reset(self):
         """Возвращение начального положения при столкновении змейки с собой."""
         self.positions = [CENTER]
         self.length = 1
         self.direction = choice(DIRECTIONS)
-        self.next_direction = None
 
     def draw(self):
-        """Отрисовка всех сегментов змейки."""
-        for position in self.positions:
-            rect = pg.Rect(position[0], position[1], GRID_SIZE, GRID_SIZE)
-            pg.draw.rect(screen, self.body_color, rect)
+        """Отрисовка только головы и затирание хвоста
+        с помощью метода родительского класса .draw_cell
+        """
+        # Рисуем новую голову змейки
+        self.draw_cell(self.get_head_position())
+
+        # Стираем старый хвост цветом фона поля
+        if self.last_tail_position:
+            self.draw_cell(self.last_tail_position, BOARD_BACKGROUND_COLOR)
 
 
 def handle_keys(snake):
     """Функция обработки действий пользователя."""
     for event in pg.event.get():
-        if event.type == pg.QUIT:
+        if (
+            event.type == pg.QUIT
+            or (event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE)
+        ):
             pg.quit()
             raise SystemExit
         elif event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
-                pg.quit()
-                raise SystemExit
-            elif event.key == pg.K_UP:
-                snake.next_direction = UP
+            if event.key == pg.K_UP:
+                snake.update_direction(UP)
             elif event.key == pg.K_DOWN:
-                snake.next_direction = DOWN
+                snake.update_direction(DOWN)
             elif event.key == pg.K_LEFT:
-                snake.next_direction = LEFT
+                snake.update_direction(LEFT)
             elif event.key == pg.K_RIGHT:
-                snake.next_direction = RIGHT
+                snake.update_direction(RIGHT)
 
 
 def main():
@@ -158,21 +157,31 @@ def main():
     snake = Snake()
     apple = Apple(occupied_positions=snake.positions)
 
+    # Изначально закрашиваем экран и рисуем первое яблоко
+    screen.fill(BOARD_BACKGROUND_COLOR)
+    apple.draw()
+
     while True:
         handle_keys(snake)
+        snake.move()
 
-        if not snake.move():
+        # 1. Сначала проверяем самоукус
+        if snake.get_head_position() in snake.positions[1:]:
             snake.reset()
+            screen.fill(BOARD_BACKGROUND_COLOR)
             apple.randomize_position(snake.positions)
+            apple.draw()  # Рисуем яблоко на новом месте после сброса экрана
 
-        if snake.get_head_position() == apple.position:
-            snake.length += 1
-            apple.randomize_position(snake.positions)
+        else:
+            # 2. Отрисовываем изменения змейки
+            # (голова перекроет старое яблоко на экране)
+            snake.draw()
 
-        # Отрисовка кадра
-        screen.fill(BOARD_BACKGROUND_COLOR)
-        snake.draw()
-        apple.draw()
+            # 3. Теперь проверяем, съела ли змейка яблоко
+            if snake.get_head_position() == apple.position:
+                snake.length += 1
+                apple.randomize_position(snake.positions)
+                apple.draw()  # Рисуем новое яблоко в случайном месте
 
         pg.display.update()
         clock.tick(SPEED)
